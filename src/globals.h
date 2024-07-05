@@ -16,7 +16,7 @@ int echo1=14;
 long distance1=0;
 //long distance2=0;
 
-
+int Mode;
 //global variable
 // long duration;
 // int Level;

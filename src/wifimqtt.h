@@ -46,6 +46,11 @@ void callback(char *topic, byte *message, unsigned int length)  // เป็น�
 // Serial.print("Message arrived on topic: ");
 // Serial.print(topic);
 // Serial.print(". Message: ");
+
+
+
+
+
 String messageTemp;  //เป็นตัวแปรชนิด String ที่ใช้เก็บข้อความที่ได้รับจาก MQTT message.
 
 for (int i = 0; i < length; i++)
@@ -54,20 +59,35 @@ for (int i = 0; i < length; i++)
     messageTemp += (char)message[i];   //อ่านข้อมูลจาก message ที่เป็นอาร์เรย์ของ byte แล้วเพิ่มไปยัง messageTemp โดยใช้ += เพื่อเชื่อมต่อข้อความที่ได้รับเข้าไปใน messageTemp
 }
 
-    if (String(topic) == "pumpStart")  //ถ้าข้อความจาก mqtt out (ผ่าน tpic pumpStart) เท่ากับ pumpStart ให้ทำการ print ออก Serial Monitor VS code
+    if (String(topic) == "pumpStart")  //ถ้าข้อความจาก mqtt out (ผ่าน topic pumpStart) เท่ากับ pumpStart ให้ทำการ print ออก Serial Monitor VS code
     {
-        if(messageTemp == "1"){
-            Serial.println("Pumping ....");
-            previousMillis=millis();
-            state=PUMPING;
+        if(messageTemp == "1" && Mode == 1) {
+        digitalWrite(relaycontrolPumDRU, HIGH);
+        client.publish("statusPump", "pump run manual"); 
+        Serial.println("pump is run manual");
+
+        previousMillis=millis();
+        state=PUMPING;
         }
-        else if(messageTemp == "0"){
-            Serial.println("sleeping ....");
-            state= TIMEFORSLEEP;   
+        else if(messageTemp == "0" && Mode == 1){
+        digitalWrite(relaycontrolPumDRU, LOW);
+        client.publish("statusPump", "pump stop manual"); 
+        Serial.println("pump is stop manual");
+        state= TIMEFORSLEEP;   
         }
         
     }
-
+    if (String(topic) == "pumpStart")  //ถ้าข้อความจาก mqtt out (ผ่าน topic pumpmode  ใช้ dashboard switch node) 
+    {
+        if(messageTemp == "M"){
+        Mode = 1;
+	    Serial.println("statusPump is Manual");
+        }
+        else if(messageTemp  == "A"){
+	    Mode = 0;
+	    Serial.println("statusPump is Automatic");        
+        }    
+    }
 }
 
 void connectAP(){

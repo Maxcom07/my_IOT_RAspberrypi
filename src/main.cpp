@@ -26,23 +26,31 @@ Serial.println("distance transmitted");
 
 }
 
-
-
-void startPumping(){
-
-  unsigned long currentMillisPumpen = millis();  //กำหนดตัวแปรใหม่ เวลาปัจจุบัน
-  digitalWrite(relaycontrolPumDRU, HIGH);
-  if (currentMillisPumpen - previousMillis >= 1000 *3) 
-{
-    digitalWrite(relaycontrolPumDRU, LOW);
-    Serial.println("pump is off");
-
+void startPumping() {
+  //unsigned long currentMillisPumpen = millis();  
   getDistance();
   Serial.println(distance1);
-  sendNewPumpInfo();
+  
 
-  state=TIMEFORSLEEP;
-}
+  if (distance1 >= 20 && Mode == 0 ) {
+    // ถ้าระยะทางเท่ากับ 10 เซนติเมตร ให้เปิดปั๊ม
+    digitalWrite(relaycontrolPumDRU, HIGH);
+    client.publish("statusPump", "pump is On Automatic");
+    Serial.println("pump is On Automatic");
+  } else if (distance1 <= 20 && Mode == 0) {
+    // ถ้าระยะทางเท่ากับ 30 เซนติเมตร ให้ปิดปั๊ม
+    digitalWrite(relaycontrolPumDRU, LOW);
+    client.publish("statusPump", "pump is off Automatic");
+    Serial.println("pump is off Automatic");
+    // เปลี่ยนสถานะเป็น TIMEFORSLEEP
+    state = TIMEFORSLEEP;
+  }
+
+    // ส่งข้อมูลปั๊มใหม่ไปยังที่ที่ต้องการ
+    sendNewPumpInfo();
+    
+
+  
 }
 
 
@@ -66,26 +74,13 @@ void setup() {
   client.setServer(mqttServer,1883);
   client.setCallback(callback);
 
-    // set ค่า Tx และ ค่า Rx ของ sensor ultrasonic  
-  // pinMode(trigPin, OUTPUT);
-  // Serial.begin(115200);
-  // Serial.println("ultrasonic Level by Sompoch");
-  // Serial.println("initializing ....");
-  // Serial.println(ssid);
-
-  // PWM signal output to Drive DCMotor
-  // ledcSetup(ledChannel, freq, resolution);
-  // ledcAttachPin(DCMTOR, ledChannel);
-  // pinMode(IN1, OUTPUT);
-  // digitalWrite(IN1, HIGH);
-
   
 }
 
 void senTemptoNodered(float temperature) {
  
   // สร้าง JSON document
-  StaticJsonDocument<48> doc;  // เลข 48 หมายถึงขนาดของหน่วยความ 48 bytes ที่จองใว้เพื่อ json
+  StaticJsonDocument<48> doc;   // เลข 48 หมายถึงขนาดของหน่วยความ 48 bytes ที่จองใว้เพื่อ json
   doc["temperature"] = temperature;
 
   char buffer[48];
@@ -93,6 +88,13 @@ void senTemptoNodered(float temperature) {
 
   // ส่งข้อมูลผ่าน MQTT
   client.publish("ds18b20/temperature", buffer);
+
+  if (client.publish("ds18b20/temperature", buffer)) {
+    Serial.println("Temperature sent successfully");
+    //state = WAIT;
+  } else {
+    Serial.println("Temperature send failed");
+  }
 }
 
 
@@ -104,31 +106,26 @@ void loop() {
     client.connect("ESP32-"); // mqtt connect
   }
 
-  // Write a pulse to the HC-SR04 Trigger pin
-  // digitalWrite(trigPin, LOW);
-  // delayMicroseconds(2);
-  // digitalWrite(trigPin, HIGH);
-  // delayMicroseconds(10);
-  // digitalWrite(trigPin, LOW);
-  // // Measure the response from the HC-SR04 ECHOPIN
-  // duration = pulseIn(echoPin, HIGH);
-  // // เวลาของเสียงเดินทางในอากาศ 343 meters per second  แปลงจาก   343 meters/seconds  to centimeters/microseconds  
-  // Level = duration * 0.034 / 2;  
-  // ที่หารสอง เพราะว่าอาแค่เวลาเดินไปเท่านั้น
-  // pwmWave = map(Level, 0, 100, 0, 255);
-  // ledcWrite(ledChannel, pwmWave); //motor runing
-  // Serial.println(pwmWave);
+  startPumping(); 
 
-  // Sensors วัด Temperature DS18B20
   sensors.requestTemperatures(); //สั่งอ่านค่าอุณหภูมิ
   float temperature = sensors.getTempCByIndex(0); // อ่านค่าอุณหภูมิ celcius
   Serial.print(temperature);
   Serial.println(" *C");
   delay(2000);
 
- // แสดงระยะทางใน Serial Monitor
-  // Serial.print(Level);
-  // Serial.println("cm");
+  unsigned long currentMillis = millis();  //  สาเหตุที่ MQTT ไม่ออกเกิดจากลืมใส่ code นี้
+  if (currentMillis - previousMillis >= 1000) {
+    previousMillis = currentMillis;
+    // Request temperature readings
+    sensors.requestTemperatures();
+    // Read temperature in Celsius degrees
+    float tempC = sensors.getTempCByIndex(0); 
+    //client.publish("ds18b20/temperature","sensors ");
+    //client.publish("Watertank/Level","Level ");
+    senTemptoNodered(tempC);
+    delay(500);
+    // ปั้มทำงานอัตโนมัติ
 
   delay(500);
 
@@ -147,18 +144,8 @@ void loop() {
   }
 
 
- 
-  // Every X number of seconds (interval = 10 seconds) publish a new MQTT message
-  if (currentMillis - previousMillis >= 1000) {
-    previousMillis = currentMillis;
-    // Request temperature readings
-    sensors.requestTemperatures();
-    // Read temperature in Celsius degrees
-    float tempC = sensors.getTempCByIndex(0); 
-    //client.publish("ds18b20/temperature","sensors ");
-    //client.publish("Watertank/Level","Level ");
-    senTemptoNodered(tempC);
-    
+
+
 
 }
 }
